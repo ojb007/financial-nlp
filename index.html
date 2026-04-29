@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Capstone Project Board - Financial NLP LLM Optimization" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>" />
+<title>Capstone Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{font-size:14px;-webkit-text-size-adjust:100%}
+body{
+  font-family:'Noto Sans KR','Noto Sans SC',Pretendard,system-ui,-apple-system,sans-serif;
+  background:#F8F9FB;color:#2D3748;line-height:1.6;min-height:100vh;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#CBD5E0;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#A0AEC0}
+
+@keyframes pulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(66,153,225,.35)}
+  50%{box-shadow:0 0 0 7px rgba(66,153,225,0)}
+}
+@keyframes checkPop{
+  0%{transform:scale(0.6)}
+  50%{transform:scale(1.15)}
+  100%{transform:scale(1)}
+}
+@keyframes slideUp{
+  from{opacity:0;transform:translateY(12px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes fadeIn{
+  from{opacity:0}to{opacity:1}
+}
+.slide-up{animation:slideUp .32s cubic-bezier(.22,1,.36,1)}
+.fade-in{animation:fadeIn .25s ease}
+.check-pop{animation:checkPop .25s cubic-bezier(.22,1,.36,1)}
+
+/* responsive */
+@media(max-width:1100px){
+  .main-layout{flex-direction:column!important}
+  .milestone-sidebar{width:100%!important;position:static!important;flex-direction:row!important;overflow-x:auto!important}
+  .milestone-sidebar>div:first-child{display:none!important}
+  .milestone-list{flex-direction:row!important;gap:8px!important;overflow-x:auto;padding-bottom:8px}
+  .milestone-list>div{flex-shrink:0!important}
+  .milestone-line{display:none!important}
+}
+@media(max-width:768px){
+  .card-grid{flex-direction:column!important}
+  .card-grid>div{max-width:100%!important;min-width:0!important}
+  .top-header{padding:14px 16px!important}
+  .top-header h1{font-size:15px!important}
+  .week-bar{padding:10px 16px!important}
+  .content-area{padding:16px!important}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useCallback,useMemo,useEffect,useRef} = React;
+
+/* ============================
+   STORAGE HELPER
+   ============================ */
+const STORAGE_KEY = 'capstone-board-v2';
+function loadState(){
+  try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+  catch{ return {}; }
+}
+function saveState(s){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch{}
+}
+
+/* ============================
+   DATA: MEMBERS
+   ============================ */
+const MEMBERS = [
+  {id:'jjw',name:'장준위',color:'#4A90D9',role:{ko:'Prompt 설계+평가+총괄',zh:'Prompt设计+评估+统筹'}},
+  {id:'ojb',name:'오정빈',color:'#5BA88C',role:{ko:'RAG+API+미세조정',zh:'RAG+API+微调'}},
+  {id:'yyj',name:'유윤지',color:'#E08850',role:{ko:'프론트엔드 개발',zh:'前端开发'}},
+  {id:'wgw',name:'원광원',color:'#9B7EC8',role:{ko:'데이터+실험 실행',zh:'数据+实验执行'}},
+  {id:'bgr',name:'방가로',color:'#8D7B68',role:{ko:'테스트+기록+자료',zh:'测试+记录+资料'}},
+];
+const memberMap = Object.fromEntries(MEMBERS.map(m=>[m.id,m]));
+
+/* ============================
+   DATA: MILESTONES
+   ============================ */
+const MILESTONES = [
+  {week:1,text:{ko:'첫 실험 데이터 + RAG 구동',zh:'首批数据 + RAG运行'},critical:false},
+  {week:2,text:{ko:'미세조정 완료 + 전체 Pipeline',zh:'微调完成 + 全Pipeline'},critical:false},
+  {week:3,text:{ko:'6개 실험군 전체 완료',zh:'6组实验全部完成'},critical:true},
+  {week:4,text:{ko:'소거 실험 완료',zh:'消融实验完成'},critical:false},
+  {week:5,text:{ko:'에러 분석 + 주요 발견',zh:'错误分析 + 主要发现'},critical:false},
+  {week:6,text:{ko:'시스템 배포 + 시각화 완성',zh:'系统部署 + 可视化完成'},critical:false},
+  {week:7,text:{ko:'제출 자료 완성',zh:'提交资料完成'},critical:true},
+  {week:8,text:{ko:'최종 제출',zh:'最终提交'},critical:false},
+];
+
+const DAY_LABELS = {ko:['월','화','수','목','금'],zh:['周一','周二','周三','周四','周五']};
+
+/* ============================
+   DATA: 8 WEEKS
+   ============================ */
+const W = {
+1:{
+  title:{ko:'1주차: 파이프라인 구축 + 첫 실험',zh:'第1周：管道搭建 + 首批实验'},
+  desc:{ko:'기본 인프라 구축 및 첫 번째 A/B 실험 완료',zh:'基础设施搭建及首批A/B实验完成'},
+  tasks:{
+    jjw:{
+      goal:{ko:'A/B 실험군 데이터 확보 + 평가 프레임워크 완성',zh:'获取A/B组实验数据 + 完成评估框架'},
+      daily:[
+        {ko:'OpenAI/Anthropic API 계정 생성. 5가지 Prompt 전략 초안 작성',zh:'注册OpenAI/Anthropic API。撰写5种Prompt策略初稿'},
+        {ko:'Cursor로 배치 테스트 스크립트 작성. FPB 100건 시험',zh:'用Cursor写批量测试脚本。FPB 100条试跑'},
+        {ko:'전략 최종 확정. FPB 전체 A군(제로샷) 실험',zh:'策略定稿。FPB全量A组(零样本)实验'},
+        {ko:'FPB 전체 B군(최적화 프롬프트) 실험',zh:'FPB全量B组(优化Prompt)实验'},
+        {ko:'평가 프레임워크 스크립트 완성. A/B군 결과 정리',zh:'评估框架脚本完成。A/B组结果整理'},
+      ],
+      deliverables:[{ko:'A/B군 Accuracy·F1 수치 + 평가 스크립트',zh:'A/B组Accuracy·F1数据 + 评估脚本'}],
+    },
+    ojb:{
+      goal:{ko:'RAG v1 구동 + FastAPI 2개 엔드포인트',zh:'RAG v1运行 + FastAPI 2个接口'},
+      daily:[
+        {ko:'FastAPI 초기화 + DB 스키마 설계',zh:'FastAPI初始化 + 数据库结构设计'},
+        {ko:'LangChain 학습 + RAG 환경 세팅 (FAISS, BGE)',zh:'学LangChain + RAG环境搭建(FAISS, BGE)'},
+        {ko:'RAG v1: PDF 로드→청크 분할→FAISS 벡터화',zh:'RAG v1: PDF加载→分块→FAISS向量化'},
+        {ko:'RAG 계속: 검색→생성. 재무제표로 테스트',zh:'RAG续：检索→生成。用财报测试'},
+        {ko:'POST /experiment, GET /results API + RAG 연결',zh:'POST /experiment, GET /results API + RAG连接'},
+      ],
+      deliverables:[{ko:'RAG 파이프라인 + API 2개',zh:'RAG流水线 + 2个API'}],
+    },
+    yyj:{
+      goal:{ko:'대시보드 레이아웃 + 차트 2종',zh:'大屏布局 + 2种图表'},
+      daily:[
+        {ko:'Next.js+Tailwind 프로젝트 생성. 테마 확정',zh:'Next.js+Tailwind项目创建。主题确定'},
+        {ko:'Figma 대시보드 와이어프레임',zh:'Figma大屏线框图'},
+        {ko:'데모+어드민 와이어프레임. 단톡방 공유',zh:'Demo+管理后台线框图。发群确认'},
+        {ko:'대시보드 개발: 사이드바+메인+라우팅',zh:'大屏开发：侧边栏+主区+路由'},
+        {ko:'Recharts 막대차트+레이더차트 (더미 데이터)',zh:'Recharts柱状图+雷达图(dummy数据)'},
+      ],
+      deliverables:[{ko:'레이아웃 + 와이어프레임 3장 + 차트 2종',zh:'布局 + 线框图3页 + 图表2种'}],
+    },
+    wgw:{
+      goal:{ko:'데이터셋 정리 + 미세조정 훈련 데이터',zh:'数据集整理 + 微调训练数据'},
+      daily:[
+        {ko:'FPB/FiQA/FinQA 다운로드 + 구조 파악',zh:'下载FPB/FiQA/FinQA + 了解结构'},
+        {ko:'3개 데이터셋 통일 CSV 변환',zh:'3个数据集统一CSV转换'},
+        {ko:'테스트셋 각 200건 분리 + 훈련셋 분류',zh:'分离测试集各200条 + 训练集分类'},
+        {ko:'500건 instruction 포맷 미세조정 데이터 생성',zh:'生成500条instruction格式微调数据'},
+        {ko:'4가지 데이터 볼륨 분할 + 합성 QA 50건',zh:'4种数据量切分 + 合成QA 50条'},
+      ],
+      deliverables:[{ko:'CSV 3개 + 테스트셋 3개 + 훈련 데이터 500건 + 합성 50건',zh:'CSV 3个 + 测试集3个 + 训练数据500条 + 合成50条'}],
+    },
+    bgr:{
+      goal:{ko:'금융 문서 수집 + 실험 기록 체계',zh:'金融文档收集 + 实验记录体系'},
+      daily:[
+        {ko:'논문 20편 수집 (제목+링크+요약)',zh:'收集论文20篇(标题+链接+摘要)'},
+        {ko:'SEC 재무제표 15건 다운로드+정리',zh:'下载SEC财报15份并清洗'},
+        {ko:'금융 뉴스 20건+리포트 10건 다운로드+정리',zh:'下载金融新闻20+报告10并清洗'},
+        {ko:'Google Sheet 기록 템플릿 + EXAONE 스펙 문서',zh:'Google Sheet记录模板 + EXAONE规格文档'},
+        {ko:'A/B군 결과 Sheet 기록. 문서 30건 → 오정빈 전달',zh:'A/B组结果录入Sheet。30份文档→交给오정빈'},
+      ],
+      deliverables:[{ko:'논문 20편 + 문서 30건 + 재무제표 15건 + Sheet',zh:'论文20篇 + 文档30份 + 财报15份 + Sheet'}],
+    },
+  },
+  handoffs:[
+    {from:'wgw',to:'jjw',desc:{ko:'원광원 데이터 → 장준위 실험 실행',zh:'원광원数据 → 장준위跑实验'}},
+    {from:'bgr',to:'ojb',desc:{ko:'방가로 재무제표+문서 → 오정빈 RAG 구축',zh:'방가로财报+文档 → 오정빈搭RAG'}},
+    {from:'jjw',to:'bgr',desc:{ko:'장준위 실험 결과 → 방가로 Sheet 기록',zh:'장준위实验结果 → 방가로录入Sheet'}},
+  ],
+},
+2:{
+  title:{ko:'2주차: 미세조정 완료 + Pipeline 가동',zh:'第2周：微调完成 + Pipeline启动'},
+  desc:{ko:'EXAONE 미세조정 및 전체 파이프라인 통합',zh:'EXAONE微调及全Pipeline整合'},
+  tasks:{
+    jjw:{
+      goal:{ko:'3개 데이터셋 A/B군 완료 (6개 실험)',zh:'3个数据集A/B组完成(6组实验)'},
+      daily:[
+        {ko:'FiQA A군 실험',zh:'FiQA A组实验'},
+        {ko:'FiQA B군 실험',zh:'FiQA B组实验'},
+        {ko:'FinQA A군 실험',zh:'FinQA A组实验'},
+        {ko:'FinQA B군 실험',zh:'FinQA B组实验'},
+        {ko:'6개 결과 종합 + 평가 프레임워크 최종 디버깅',zh:'6组结果汇总 + 评估框架最终调试'},
+      ],
+      deliverables:[{ko:'A/B군 3개 데이터셋 전체 결과',zh:'A/B组3个数据集全部结果'}],
+    },
+    ojb:{
+      goal:{ko:'EXAONE 미세조정 + RAG 연동 + 비용 추적',zh:'EXAONE微调 + RAG联动 + 成本追踪'},
+      daily:[
+        {ko:'Colab QLoRA로 EXAONE Deep 7.8B 미세조정 (1)',zh:'Colab上QLoRA微调EXAONE Deep 7.8B (1)'},
+        {ko:'Colab QLoRA 미세조정 계속 (2)',zh:'QLoRA微调续 (2)'},
+        {ko:'미세조정 전후 성능 비교',zh:'微调前后性能对比'},
+        {ko:'미세조정 모델 → RAG 연결',zh:'微调模型接入RAG'},
+        {ko:'API 비용/지연 자동 기록 기능 추가',zh:'API加成本/延迟自动记录'},
+      ],
+      deliverables:[{ko:'미세조정 완료 + RAG 연동 + 비용 추적 API',zh:'微调完成 + RAG联动 + 成本追踪API'}],
+    },
+    yyj:{
+      goal:{ko:'데모 페이지 + Side-by-side UI + 연동',zh:'Demo页 + 并排对比UI + 联调'},
+      daily:[
+        {ko:'데모 페이지 v1 개발 (입력폼)',zh:'Demo页v1开发(输入表单)'},
+        {ko:'데모 페이지 v1 완성 (입력→API→응답)',zh:'Demo页v1完成(输入→API→回答)'},
+        {ko:'Side-by-side 비교 UI (최대 6전략)',zh:'Side-by-side比较UI(最多6策略)'},
+        {ko:'로딩/에러 상태 처리',zh:'Loading/错误状态处理'},
+        {ko:'오정빈 API ↔ 프론트 연동 테스트',zh:'오정빈 API ↔ 前端联调测试'},
+      ],
+      deliverables:[{ko:'데모 + 비교 UI + 연동 완료',zh:'Demo + 对比UI + 联调完成'}],
+    },
+    wgw:{
+      goal:{ko:'미세조정 보조 + 합성 데이터 + 실험 보조',zh:'微调辅助 + 合成数据 + 实验辅助'},
+      daily:[
+        {ko:'오정빈 미세조정 보조 (명령 실행/loss 캡쳐)',zh:'辅助오정빈微调(执行命令/截loss曲线)'},
+        {ko:'미세조정 로그 기록',zh:'微调日志记录'},
+        {ko:'합성 QA 50건 추가 생성 (총 100건)',zh:'追加生成合成QA 50条(共100条)'},
+        {ko:'장준위 FiQA/FinQA 실험 보조 (배치 실행)',zh:'辅助장준위跑FiQA/FinQA(批量执行)'},
+        {ko:'JSON 수집 및 정리',zh:'JSON收集整理'},
+      ],
+      deliverables:[{ko:'미세조정 로그 + 합성 100건 + 실험 보조 완료',zh:'微调日志 + 合成100条 + 实验辅助完成'}],
+    },
+    bgr:{
+      goal:{ko:'실험 기록 + 비용 관리 + 설정 문서',zh:'实验记录 + 费用管理 + 设定文档'},
+      daily:[
+        {ko:'FiQA 결과 실시간 Sheet 기록',zh:'FiQA结果实时录入Sheet'},
+        {ko:'FinQA 결과 Sheet 기록 + API 비용 집계',zh:'FinQA结果录入Sheet + API费用统计'},
+        {ko:'API 비용 집계 완료',zh:'API费用统计完成'},
+        {ko:'멘토 미팅 진행 보고서 1페이지',zh:'导师月会进度报告1页'},
+        {ko:'각 실험군 설정 요약 문서 (모델/Prompt/RAG 유무 등)',zh:'各实验组设定汇总文档(模型/Prompt/RAG有无等)'},
+      ],
+      deliverables:[{ko:'기록 + 비용 + 보고서 + 설정 문서',zh:'记录 + 费用 + 报告 + 设定文档'}],
+    },
+  },
+  handoffs:[
+    {from:'wgw',to:'ojb',desc:{ko:'원광원 훈련 데이터 → 오정빈 미세조정',zh:'원광원训练数据 → 오정빈微调'}},
+    {from:'ojb',to:'ojb',desc:{ko:'오정빈 미세조정 모델 → RAG 파이프라인 연결',zh:'오정빈微调模型 → RAG流水线连接'}},
+    {from:'jjw',to:'bgr',desc:{ko:'장준위 실험 결과 → 방가로 기록',zh:'장준위实验结果 → 방가로记录'}},
+  ],
+},
+3:{
+  title:{ko:'3주차: 6개 실험군 전체 완료 ⚠️',zh:'第3周：6组实验全部完成 ⚠️'},
+  desc:{ko:'⚠️ 핵심 마일스톤: 6개 실험군 전체 완료 — 연기 불가',zh:'⚠️ 关键里程碑：6组实验全部完成 — 不可延期'},
+  tasks:{
+    jjw:{
+      goal:{ko:'C군+E군 완료 (6개 실험)',zh:'C组+E组完成(6组实验)'},
+      daily:[
+        {ko:'C군 (GPT+RAG) × FPB',zh:'C组(GPT+RAG) × FPB'},
+        {ko:'C군 (GPT+RAG) × FiQA, FinQA',zh:'C组(GPT+RAG) × FiQA, FinQA'},
+        {ko:'E군 (GPT+RAG+Prompt) × FPB',zh:'E组(GPT+RAG+Prompt) × FPB'},
+        {ko:'E군 (GPT+RAG+Prompt) × FiQA, FinQA',zh:'E组(GPT+RAG+Prompt) × FiQA, FinQA'},
+        {ko:'C/E군 결과 정리 + 6군 전체 1차 분석',zh:'C/E组结果整理 + 6组初步分析'},
+      ],
+      deliverables:[{ko:'C/E군 결과 + 6군 초기 분석 문서',zh:'C/E组结果 + 6组初步分析文档'}],
+    },
+    ojb:{
+      goal:{ko:'D군+F군 완료 (6개 실험) + 시스템 안정화',zh:'D组+F组完成(6组实验) + 系统稳定化'},
+      daily:[
+        {ko:'D군 (EXAONE 4.0 32B+RAG) × FPB',zh:'D组(EXAONE 4.0 32B+RAG) × FPB'},
+        {ko:'D군 × FiQA, FinQA',zh:'D组 × FiQA, FinQA'},
+        {ko:'F군 (EXAONE Deep 미세조정+RAG) × FPB',zh:'F组(EXAONE Deep微调+RAG) × FPB'},
+        {ko:'F군 × FiQA, FinQA',zh:'F组 × FiQA, FinQA'},
+        {ko:'D/F군 결과 + EXAONE 분석 메모 + API 점검',zh:'D/F组结果 + EXAONE分析备忘 + API检查'},
+      ],
+      deliverables:[{ko:'D/F군 결과 + EXAONE 메모',zh:'D/F组结果 + EXAONE备忘'}],
+    },
+    yyj:{
+      goal:{ko:'실제 데이터 대시보드 + 테이블 뷰',zh:'真实数据大屏 + 表格视图'},
+      daily:[
+        {ko:'대시보드에 6군 실제 데이터 연동',zh:'大屏对接6组真实数据'},
+        {ko:'Accuracy/F1 막대 차트 완성',zh:'Accuracy/F1柱状图完成'},
+        {ko:'데이터셋 전환 탭 개발',zh:'数据集切换Tab开发'},
+        {ko:'테이블 뷰 (정렬/필터/검색)',zh:'表格视图(排序/筛选/搜索)'},
+        {ko:'전체 연동 테스트 + 스크린샷 공유',zh:'全部联调测试 + 截图共享'},
+      ],
+      deliverables:[{ko:'실데이터 대시보드 + 테이블 뷰',zh:'真实数据大屏 + 表格视图'}],
+    },
+    wgw:{
+      goal:{ko:'12개 실험 보조 + 비용 기록',zh:'12组实验辅助 + 成本记录'},
+      daily:[
+        {ko:'장준위 C군 보조 (스크립트 실행)',zh:'辅助장준위C组(脚本执行)'},
+        {ko:'C군 JSON 수집',zh:'C组JSON收集'},
+        {ko:'오정빈 D/F군 보조 (EXAONE 추론)',zh:'辅助오정빈D/F组(EXAONE推理)'},
+        {ko:'D/F군 지연 측정',zh:'D/F组延迟测量'},
+        {ko:'12개 실험 토큰/비용 기록 정리',zh:'12组实验token/成本记录整理'},
+      ],
+      deliverables:[{ko:'12개 보조 완료 + 토큰/비용 기록',zh:'12组辅助完成 + token/成本记录'}],
+    },
+    bgr:{
+      goal:{ko:'12건 실시간 기록 + 비교 표',zh:'12组实时记录 + 对比表'},
+      daily:[
+        {ko:'완료 건 30분 이내 Sheet 기록 (C군)',zh:'完成后30分内录入Sheet(C组)'},
+        {ko:'Sheet 기록 (D군)',zh:'录入Sheet(D组)'},
+        {ko:'Sheet 기록 (E군)',zh:'录入Sheet(E组)'},
+        {ko:'Sheet 기록 (F군)',zh:'录入Sheet(F组)'},
+        {ko:'6군×3데이터셋 비교 표 + API/GPU 비용 명세',zh:'6组×3数据集对比表 + API/GPU费用明细'},
+      ],
+      deliverables:[{ko:'완전한 기록 + 비교 표 + 비용 명세',zh:'完整记录 + 对比表 + 费用明细'}],
+    },
+  },
+  handoffs:[
+    {from:'jjw',to:'bgr',desc:{ko:'장준위·오정빈 결과 → 방가로 기록 → 유윤지 대시보드',zh:'장준위·오정빈结果 → 방가로记录 → 유윤지大屏'}},
+    {from:'wgw',to:'jjw',desc:{ko:'원광원 양쪽 실험 보조',zh:'원광원两边辅助执行'}},
+  ],
+},
+4:{
+  title:{ko:'4주차: 소거 실험',zh:'第4周：消融实验'},
+  desc:{ko:'5가지 소거 실험으로 각 요소의 기여도 분석',zh:'5种消融实验分析各要素贡献度'},
+  tasks:{
+    jjw:{
+      goal:{ko:'소거 21개 실험 완료',zh:'完成21组消融实验'},
+      daily:[
+        {ko:'소거1: 5가지 Prompt×FPB = 5개',zh:'消融1: 5种Prompt×FPB = 5组'},
+        {ko:'소거1: 5가지 Prompt×FiQA,FinQA = 10개',zh:'消融1: 5种Prompt×FiQA,FinQA = 10组'},
+        {ko:'소거2: 검색 top-3/5/10 × FPB,FiQA = 6개',zh:'消融2: 检索top-3/5/10 × FPB,FiQA = 6组'},
+        {ko:'소거2 계속: FinQA',zh:'消融2续: FinQA'},
+        {ko:'21개 결과 정리 + 주요 발견 메모',zh:'21组结果整理 + 主要发现备忘'},
+      ],
+      deliverables:[{ko:'소거 21개 결과 + 발견 메모',zh:'消融21组结果 + 发现备忘'}],
+    },
+    ojb:{
+      goal:{ko:'소거 6개 실험 완료',zh:'完成6组消融实验'},
+      daily:[
+        {ko:'소거3: chunk 256/512 비교',zh:'消融3: chunk 256/512对比'},
+        {ko:'소거3: chunk 1024 비교 (3개 완료)',zh:'消融3: chunk 1024对比(3组完成)'},
+        {ko:'소거4: EXAONE 추론 모드 (FPB)',zh:'消融4: EXAONE推理模式(FPB)'},
+        {ko:'소거4: EXAONE 비추론 모드 (FiQA, FinQA)',zh:'消融4: EXAONE非推理模式(FiQA, FinQA)'},
+        {ko:'6개 결과 정리',zh:'6组结果整理'},
+      ],
+      deliverables:[{ko:'소거 6개 결과',zh:'消融6组结果'}],
+    },
+    yyj:{
+      goal:{ko:'비용 분석 페이지 + 소거 탭',zh:'成本分析页 + 消融Tab'},
+      daily:[
+        {ko:'건당 비용 막대 차트',zh:'每条成本柱状图'},
+        {ko:'정확도/달러 산점도',zh:'准确率/美元散点图'},
+        {ko:'지연 히스토그램',zh:'延迟直方图'},
+        {ko:'소거 전용 탭 개발',zh:'消融专用Tab开发'},
+        {ko:'Plotly 인터랙티브 차트',zh:'Plotly交互图表'},
+      ],
+      deliverables:[{ko:'비용 분석 + 히스토그램 + 소거 탭',zh:'成本分析 + 直方图 + 消融Tab'}],
+    },
+    wgw:{
+      goal:{ko:'소거5 직접 실행 + 보조',zh:'消融5直接执行 + 辅助'},
+      daily:[
+        {ko:'소거5: 미세조정 데이터량 100/500 비교 (2개)',zh:'消融5: 微调数据量100/500对比(2组)'},
+        {ko:'소거5: 데이터량 1000/2000 비교 (2개)',zh:'消融5: 数据量1000/2000对比(2组)'},
+        {ko:'장준위 15개 Prompt 소거 보조',zh:'辅助장준위15组Prompt消融'},
+        {ko:'전체 소거 토큰 기록',zh:'全部消融token记录'},
+        {ko:'전체 소거 비용 기록 정리',zh:'全部消融成本记录整理'},
+      ],
+      deliverables:[{ko:'소거 4개 결과 + 보조 + 비용 기록',zh:'消融4组结果 + 辅助 + 成本记录'}],
+    },
+    bgr:{
+      goal:{ko:'31개 소거 기록 + 대조표 + 비용',zh:'31组消融记录 + 对照表 + 费用'},
+      daily:[
+        {ko:'소거 결과 실시간 기록 (Prompt 소거)',zh:'消融结果实时记录(Prompt消融)'},
+        {ko:'소거 결과 기록 (검색/chunk 소거)',zh:'消融结果记录(检索/chunk消融)'},
+        {ko:'소거 결과 기록 (EXAONE/데이터량 소거)',zh:'消融结果记录(EXAONE/数据量消融)'},
+        {ko:'소거 변수 대조표 작성',zh:'消融变量对照表制作'},
+        {ko:'누적 비용 집계 + 설정 문서 업데이트',zh:'累计费用汇总 + 设定文档更新'},
+      ],
+      deliverables:[{ko:'소거 기록 + 대조표 + 비용 + 문서',zh:'消融记录 + 对照表 + 费用 + 文档'}],
+    },
+  },
+  handoffs:[
+    {from:'wgw',to:'wgw',desc:{ko:'원광원 4종 데이터 → 자체 실행',zh:'원광원4种数据 → 自行执行'}},
+    {from:'jjw',to:'bgr',desc:{ko:'전원 결과 → 방가로 기록 → 유윤지 시각화',zh:'全员结果 → 방가로记录 → 유윤지可视化'}},
+  ],
+},
+5:{
+  title:{ko:'5주차: 에러 분석 + 심층 비교',zh:'第5周：错误分析 + 深度对比'},
+  desc:{ko:'에러 레이블링과 심층 분석으로 주요 발견 도출',zh:'错误标注和深度分析得出主要发现'},
+  tasks:{
+    jjw:{
+      goal:{ko:'에러 분석 + 주요 발견 3~5가지 확정',zh:'错误分析 + 确定3-5个主要发现'},
+      daily:[
+        {ko:'에러 5가지 분류 기준 정의 + 레이블링 가이드',zh:'定义5类错误标准 + 标注指南'},
+        {ko:'A/B군 각 20건 레이블링',zh:'A/B组各20条标注'},
+        {ko:'C군 20건 레이블링 (총 60건)',zh:'C组20条标注(共60条)'},
+        {ko:'전체 레이블링 취합 + 패턴 분석',zh:'汇总全部标注 + 模式分析'},
+        {ko:'주요 발견 3~5가지 확정',zh:'确定3-5个主要发现'},
+      ],
+      deliverables:[{ko:'에러 보고서 + 발견 리스트',zh:'错误报告 + 发现列表'}],
+    },
+    ojb:{
+      goal:{ko:'한국어 전용 테스트 + 레이블링 + HuggingFace',zh:'韩语专项测试 + 标注 + HuggingFace'},
+      daily:[
+        {ko:'EXAONE vs GPT 한국어 금융 전용 테스트 (1)',zh:'EXAONE vs GPT韩语金融专项测试 (1)'},
+        {ko:'한국어 전용 테스트 계속 (2)',zh:'韩语专项测试续 (2)'},
+        {ko:'D/E/F군 각 20건 레이블링 (60건)',zh:'D/E/F组各20条标注(60条)'},
+        {ko:'API 안정화 + Swagger 문서',zh:'API稳定化 + Swagger文档'},
+        {ko:'미세조정 모델 HuggingFace 업로드 + 재현 가이드',zh:'微调模型上传HuggingFace + 复现指南'},
+      ],
+      deliverables:[{ko:'한국어 데이터 + 레이블링 60건 + HuggingFace',zh:'韩语数据 + 标注60条 + HuggingFace'}],
+    },
+    yyj:{
+      goal:{ko:'시각화 4종 + 모달 + 반응형',zh:'4种可视化 + 弹窗 + 响应式'},
+      daily:[
+        {ko:'레이더 차트 (6군 다차원 비교)',zh:'雷达图(6组多维对比)'},
+        {ko:'히트맵 (데이터셋×실험군)',zh:'热力图(数据集×实验组)'},
+        {ko:'에러 파이차트 + 에러율 바차트',zh:'错误饼图 + 错误率柱状图'},
+        {ko:'개별 응답 상세 모달',zh:'单条回答详情弹窗'},
+        {ko:'전체 UI 반응형 (모바일/태블릿)',zh:'全部UI响应式(移动/平板)'},
+      ],
+      deliverables:[{ko:'레이더+히트맵+에러 시각화+모달+반응형',zh:'雷达+热力图+错误可视化+弹窗+响应式'}],
+    },
+    wgw:{
+      goal:{ko:'레이블링 150건 + 교차 검증 + 데이터 패키지',zh:'标注150条 + 交叉验证 + 数据包'},
+      daily:[
+        {ko:'에러 기준으로 50건 레이블링',zh:'按错误标准标注50条'},
+        {ko:'50건 레이블링 계속',zh:'标注50条续'},
+        {ko:'50건 레이블링 완료 (총 150건)',zh:'标注50条完成(共150条)'},
+        {ko:'방가로와 교차 검증 (동일 50건)',zh:'与방가로交叉验证(相同50条)'},
+        {ko:'최종 데이터 패키지 정리 (CSV/JSON)',zh:'最终数据包整理(CSV/JSON)'},
+      ],
+      deliverables:[{ko:'레이블링 150건 + 검증 + 데이터 패키지',zh:'标注150条 + 验证 + 数据包'}],
+    },
+    bgr:{
+      goal:{ko:'레이블링 150건 + 일치도 + 그래프 목록',zh:'标注150条 + 一致性 + 图表目录'},
+      daily:[
+        {ko:'50건 레이블링 (원광원과 독립)',zh:'标注50条(与원광원独立)'},
+        {ko:'50건 레이블링 계속',zh:'标注50条续'},
+        {ko:'50건 레이블링 완료 (총 150건)',zh:'标注50条完成(共150条)'},
+        {ko:"Cohen's Kappa 일치도 계산",zh:"计算Cohen's Kappa一致性"},
+        {ko:'그래프 목록 정리 (번호/제목/출처)',zh:'图表目录整理(编号/标题/来源)'},
+      ],
+      deliverables:[{ko:'레이블링 150건 + 일치도 보고 + 목록',zh:'标注150条 + 一致性报告 + 目录'}],
+    },
+  },
+  handoffs:[
+    {from:'jjw',to:'wgw',desc:{ko:'장준위 기준 정의 → 원광원·방가로 레이블링 실행',zh:'장준위定义标准 → 원광원·방가로执行标注'}},
+    {from:'wgw',to:'jjw',desc:{ko:'원광원·방가로 교차 검증 → 장준위 취합 분석',zh:'원광원·방가로交叉验证 → 장준위汇总分析'}},
+  ],
+},
+6:{
+  title:{ko:'6주차: 시스템 통합 + 시각화 완성',zh:'第6周：系统整合 + 可视化完成'},
+  desc:{ko:'전체 시스템 통합 배포 및 시각화 최종 완성',zh:'全系统整合部署及可视化最终完成'},
+  tasks:{
+    jjw:{
+      goal:{ko:'데이터 검증 + 멘토 보고 + 테스트 기획',zh:'数据验证 + 导师汇报 + 测试规划'},
+      daily:[
+        {ko:'전체 실험 데이터 최종 검증 (각 군 10건+)',zh:'全部实验数据最终验证(每组10条+)'},
+        {ko:'수동 확인 완료',zh:'人工确认完成'},
+        {ko:'멘토 보고 자료 (주요 발견+그래프)',zh:'导师汇报资料(主要发现+图表)'},
+        {ko:'보고 자료 요약 완성',zh:'汇报资料摘要完成'},
+        {ko:'시스템 통합 테스트 체크리스트 작성',zh:'系统整合测试清单编写'},
+      ],
+      deliverables:[{ko:'검증 완료 + 보고 자료 + 체크리스트',zh:'验证完成 + 汇报资料 + 清单'}],
+    },
+    ojb:{
+      goal:{ko:'시스템 통합 + 배포 + GitHub',zh:'系统整合 + 部署 + GitHub'},
+      daily:[
+        {ko:'전체 통합 테스트 (프론트→백엔드)',zh:'全系统联调(前端→后端)'},
+        {ko:'통합 테스트 (RAG→모델)',zh:'联调(RAG→模型)'},
+        {ko:'백엔드 클라우드 배포',zh:'后端云部署'},
+        {ko:'부하 테스트',zh:'负载测试'},
+        {ko:'GitHub README + 설치 가이드',zh:'GitHub README + 安装指南'},
+      ],
+      deliverables:[{ko:'통합+배포+GitHub 문서',zh:'联调+部署+GitHub文档'}],
+    },
+    yyj:{
+      goal:{ko:'어드민+랜딩+데모 영상+UI 완성',zh:'管理后台+Landing+Demo视频+UI完成'},
+      daily:[
+        {ko:'어드민 페이지 (실험 이력/내보내기)',zh:'管理后台页(实验历史/导出)'},
+        {ko:'어드민 페이지 (상태)',zh:'管理后台(状态)'},
+        {ko:'랜딩 페이지 (프로젝트 소개+주요 결과)',zh:'Landing页(项目介绍+主要结果)'},
+        {ko:'데모 영상 촬영 (3분)',zh:'录制Demo视频(3分钟)'},
+        {ko:'UI 최종 다듬기 (애니메이션/Loading/빈 상태)',zh:'UI最终打磨(动效/Loading/空状态)'},
+      ],
+      deliverables:[{ko:'어드민+랜딩+영상+UI 완성',zh:'管理后台+Landing+视频+UI完成'}],
+    },
+    wgw:{
+      goal:{ko:'표 8장+ 그래프 + 교차 확인',zh:'表格8张+ 图表 + 交叉验证'},
+      daily:[
+        {ko:'전체 표 제작 (6군 비교×3셋)',zh:'全部表格制作(6组×3集)'},
+        {ko:'표 제작 (소거+비용), ≥8장 완성',zh:'表格制作(消融+成本), ≥8张完成'},
+        {ko:'전체 그래프 제작 (고해상도)',zh:'全部图表制作(高清)'},
+        {ko:'그래프 스크린샷+재편집',zh:'图表截图+重制'},
+        {ko:'숫자 교차 확인 (표=Sheet 원본)',zh:'数字交叉验证(表=Sheet原始数据)'},
+      ],
+      deliverables:[{ko:'표 8장+ + 그래프 + 교차 확인',zh:'表8张+ + 图表 + 交叉验证'}],
+    },
+    bgr:{
+      goal:{ko:'참고문헌 + 재현 테스트',zh:'参考文献 + 再现测试'},
+      daily:[
+        {ko:'참고문헌 ≥20편 형식 통일 (1)',zh:'参考文献≥20篇格式统一 (1)'},
+        {ko:'참고문헌 형식 통일 완료',zh:'参考文献格式统一完成'},
+        {ko:'재현 테스트: 주요 3건 재실행 (1)',zh:'再现测试：重跑3组 (1)'},
+        {ko:'재현 테스트: 결과 일치 확인',zh:'再现测试：确认结果一致'},
+        {ko:'재현 테스트 보고서',zh:'再现测试报告'},
+      ],
+      deliverables:[{ko:'참고문헌 + 재현 보고서',zh:'参考文献 + 再现报告'}],
+    },
+  },
+  handoffs:[
+    {from:'yyj',to:'wgw',desc:{ko:'유윤지 스크린샷 → 원광원 표/그래프 제작',zh:'유윤지截图 → 원광원制表/图表'}},
+    {from:'ojb',to:'jjw',desc:{ko:'오정빈 배포 → 장준위 검수',zh:'오정빈部署 → 장준위验收'}},
+    {from:'bgr',to:'jjw',desc:{ko:'방가로 재현 테스트 → 장준위 결과 확인',zh:'방가로再现测试 → 장준위确认结果'}},
+  ],
+},
+7:{
+  title:{ko:'7주차: 최종 정리 + 제출 준비 ⚠️',zh:'第7周：最终整理 + 提交准备 ⚠️'},
+  desc:{ko:'⚠️ 핵심 마일스톤: 제출 자료 완성 — 연기 불가',zh:'⚠️ 关键里程碑：提交资料完成 — 不可延期'},
+  tasks:{
+    jjw:{
+      goal:{ko:'결과 문서 + 배포 확인 + 제출 점검',zh:'结果文档 + 部署确认 + 提交检查'},
+      daily:[
+        {ko:'전체 결과 정리 문서 (실험 요약)',zh:'全部结果整理文档(实验总结)'},
+        {ko:'결과 문서 (발견+한계점)',zh:'结果文档(发现+局限)'},
+        {ko:'Vercel 배포 확인',zh:'Vercel部署确认'},
+        {ko:'전체 smoke test',zh:'全系统smoke test'},
+        {ko:'최종 제출 자료 체크리스트 점검',zh:'最终提交资料清单检查'},
+      ],
+      deliverables:[{ko:'정리 문서 + 배포 확인 + 체크리스트',zh:'整理文档 + 部署确认 + 清单'}],
+    },
+    ojb:{
+      goal:{ko:'배포 완료 + GitHub 최종',zh:'部署完成 + GitHub最终版'},
+      daily:[
+        {ko:'프론트 Vercel 배포',zh:'前端Vercel部署'},
+        {ko:'도메인 연결',zh:'域名连接'},
+        {ko:'상용 환경 최종 테스트',zh:'正式环境最终测试'},
+        {ko:'백업 계획 수립',zh:'备份方案制定'},
+        {ko:'GitHub 최종 정리 (구조/라이선스/주석)',zh:'GitHub最终整理(结构/License/注释)'},
+      ],
+      deliverables:[{ko:'완전 배포 + GitHub 최종본',zh:'完全部署 + GitHub最终版'}],
+    },
+    yyj:{
+      goal:{ko:'스크린샷 + 버그 수정 + 데모 점검',zh:'截图 + 修bug + Demo检查'},
+      daily:[
+        {ko:'고해상도 스크린샷 전체 촬영',zh:'全套高清截图'},
+        {ko:'각 차트 개별 스크린샷',zh:'每张图表单独截图'},
+        {ko:'번호 표기→원광원 전달',zh:'编号标注→交원광원'},
+        {ko:'최종 버그 수정',zh:'最终bug修复'},
+        {ko:'데모 시나리오 최종 점검',zh:'Demo场景最终检查'},
+      ],
+      deliverables:[{ko:'스크린샷 + 버그 수정 + 데모 점검',zh:'截图 + bug修复 + Demo检查'}],
+    },
+    wgw:{
+      goal:{ko:'자료 삽입 + 검증 + 제출 준비',zh:'资料插入 + 验证 + 提交准备'},
+      daily:[
+        {ko:'스크린샷 제출 자료에 삽입 (1)',zh:'截图插入提交资料 (1)'},
+        {ko:'스크린샷 삽입 완료',zh:'截图插入完成'},
+        {ko:'데이터 인용 최종 검증 (본문=표)',zh:'数据引用最终验证(正文=表)'},
+        {ko:'검증 (표=Sheet)',zh:'验证(表=Sheet)'},
+        {ko:'최종 데이터 패키지 + 코드 제출 준비',zh:'最终数据包 + 代码提交准备'},
+      ],
+      deliverables:[{ko:'삽입 + 검증 + 제출 준비',zh:'插入 + 验证 + 提交准备'}],
+    },
+    bgr:{
+      goal:{ko:'교정 + 형식 확인 + 패키징',zh:'校对 + 格式确认 + 打包'},
+      daily:[
+        {ko:'전체 제출 자료 오탈자 교정 (1)',zh:'全部提交资料校对错别字 (1)'},
+        {ko:'오탈자 교정 완료',zh:'校对完成'},
+        {ko:'제출 형식 확인 (파일명/폴더)',zh:'提交格式确认(文件名/目录)'},
+        {ko:'제출 형식 확인 (용량)',zh:'提交格式确认(容量)'},
+        {ko:'전체 제출물 최종 패키징',zh:'全部提交物最终打包'},
+      ],
+      deliverables:[{ko:'교정 + 패키징 완료',zh:'校对 + 打包完成'}],
+    },
+  },
+  handoffs:[
+    {from:'yyj',to:'wgw',desc:{ko:'유윤지 스크린샷 → 원광원 삽입 → 방가로 교정 → 장준위 최종 확인',zh:'유윤지截图 → 원광원插入 → 방가로校对 → 장준위最终确认'}},
+  ],
+},
+8:{
+  title:{ko:'8주차: 버퍼 + 제출',zh:'第8周：缓冲 + 提交'},
+  desc:{ko:'멘토 피드백 반영 및 최종 제출',zh:'导师反馈修改及最终提交'},
+  tasks:{
+    jjw:{
+      goal:{ko:'멘토 피드백 반영 + 최종 제출',zh:'导师反馈修改 + 最终提交'},
+      daily:[
+        {ko:'멘토 피드백 반영 (추가 실험)',zh:'导师反馈修改(补充实验)'},
+        {ko:'멘토 피드백 반영 (수정)',zh:'导师反馈修改(修复)'},
+        {ko:'부족한 부분 보완 (1)',zh:'不足部分补充 (1)'},
+        {ko:'부족한 부분 보완 (2)',zh:'不足部分补充 (2)'},
+        {ko:'최종 제출',zh:'最终提交'},
+      ],
+      deliverables:[{ko:'최종 제출 완료',zh:'最终提交完成'}],
+    },
+    ojb:{
+      goal:{ko:'멘토 피드백 반영 + 최종 제출',zh:'导师反馈修改 + 最终提交'},
+      daily:[
+        {ko:'멘토 피드백 반영 (API/RAG 수정)',zh:'导师反馈修改(API/RAG修复)'},
+        {ko:'멘토 피드백 반영 (보완)',zh:'导师反馈修改(补充)'},
+        {ko:'부족한 부분 보완 (1)',zh:'不足部分补充 (1)'},
+        {ko:'부족한 부분 보완 (2)',zh:'不足部分补充 (2)'},
+        {ko:'최종 제출',zh:'最终提交'},
+      ],
+      deliverables:[{ko:'최종 제출 완료',zh:'最终提交完成'}],
+    },
+    yyj:{
+      goal:{ko:'멘토 피드백 반영 + 최종 제출',zh:'导师反馈修改 + 最终提交'},
+      daily:[
+        {ko:'멘토 피드백 반영 (UI 수정)',zh:'导师反馈修改(UI修复)'},
+        {ko:'멘토 피드백 반영 (보완)',zh:'导师反馈修改(补充)'},
+        {ko:'부족한 부분 보완 (1)',zh:'不足部分补充 (1)'},
+        {ko:'부족한 부분 보완 (2)',zh:'不足部分补充 (2)'},
+        {ko:'최종 제출',zh:'最终提交'},
+      ],
+      deliverables:[{ko:'최종 제출 완료',zh:'最终提交完成'}],
+    },
+    wgw:{
+      goal:{ko:'멘토 피드백 반영 + 최종 제출',zh:'导师反馈修改 + 最终提交'},
+      daily:[
+        {ko:'멘토 피드백 반영 (데이터 수정)',zh:'导师反馈修改(数据修复)'},
+        {ko:'멘토 피드백 반영 (보완)',zh:'导师反馈修改(补充)'},
+        {ko:'부족한 부분 보완 (1)',zh:'不足部分补充 (1)'},
+        {ko:'부족한 부분 보완 (2)',zh:'不足部分补充 (2)'},
+        {ko:'최종 제출',zh:'最终提交'},
+      ],
+      deliverables:[{ko:'최종 제출 완료',zh:'最终提交完成'}],
+    },
+    bgr:{
+      goal:{ko:'멘토 피드백 반영 + 최종 제출',zh:'导师反馈修改 + 最终提交'},
+      daily:[
+        {ko:'멘토 피드백 반영 (문서 수정)',zh:'导师反馈修改(文档修复)'},
+        {ko:'멘토 피드백 반영 (보완)',zh:'导师反馈修改(补充)'},
+        {ko:'부족한 부분 보완 (1)',zh:'不足部分补充 (1)'},
+        {ko:'부족한 부분 보완 (2)',zh:'不足部分补充 (2)'},
+        {ko:'최종 제출',zh:'最终提交'},
+      ],
+      deliverables:[{ko:'최종 제출 완료',zh:'最终提交完成'}],
+    },
+  },
+  handoffs:[
+    {from:'jjw',to:'jjw',desc:{ko:'전원 피드백 반영 후 장준위 최종 확인 → 제출',zh:'全员修改后장준위最终确认 → 提交'}},
+  ],
+},
+};
+
+/* ============================
+   PROGRESS CALC
+   ============================ */
+function calcProgress(completed, week){
+  const wd = W[week];
+  if(!wd) return {done:0,total:0,pct:0,byMember:{}};
+  let total=0, done=0;
+  const byMember = {};
+  MEMBERS.forEach(m=>{
+    const t = wd.tasks[m.id];
+    if(!t) return;
+    const cnt = t.deliverables.length;
+    let d = 0;
+    t.deliverables.forEach((_,i)=>{
+      if(completed[`${week}-${m.id}-${i}`]) d++;
+    });
+    total += cnt; done += d;
+    byMember[m.id] = {done:d, total:cnt};
+  });
+  return {done,total,pct:total?Math.round(done/total*100):0,byMember};
+}
+
+/* ============================
+   COMPONENTS
+   ============================ */
+
+/* --- Header --- */
+function Header({lang,setLang,progress}){
+  const pn = {ko:'금융 NLP를 위한 LLM 최적화 전략 비교 연구',zh:'金融NLP的LLM优化策略对比研究'};
+  const ml = {ko:'지도교수',zh:'导师'};
+  const sl = {ko:'8주 스프린트',zh:'8周冲刺'};
+  return (
+    <header className="top-header" style={{
+      background:'#FFFFFF',borderBottom:'1px solid #E8EDF2',
+      padding:'18px 32px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'12px',
+    }}>
+      <div style={{minWidth:0,flex:1}}>
+        <h1 style={{fontSize:'18px',fontWeight:700,color:'#1A202C',marginBottom:'3px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+          {pn[lang]}
+        </h1>
+        <div style={{fontSize:'12.5px',color:'#718096',display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
+          <span>{ml[lang]}: 최기봉 (LG AI Research / EXAONE lab)</span>
+          <span style={{color:'#CBD5E0'}}>|</span>
+          <span>{sl[lang]}</span>
+        </div>
+      </div>
+      <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+        {/* Overall progress mini */}
+        <div style={{display:'flex',alignItems:'center',gap:'8px',padding:'6px 14px',background:'#F7FAFC',borderRadius:'8px',border:'1px solid #EDF2F7'}}>
+          <div style={{width:'80px',height:'6px',borderRadius:'3px',background:'#EDF2F7',overflow:'hidden'}}>
+            <div style={{width:`${progress.pct}%`,height:'100%',borderRadius:'3px',background:progress.pct===100?'#48BB78':'#4A90D9',transition:'width .4s ease'}} />
+          </div>
+          <span style={{fontSize:'12px',fontWeight:600,color:progress.pct===100?'#276749':'#4A5568',minWidth:'32px'}}>{progress.pct}%</span>
+        </div>
+        <button onClick={()=>setLang(lang==='ko'?'zh':'ko')} style={{
+          padding:'7px 18px',borderRadius:'8px',border:'1px solid #E2E8F0',background:'#FFFFFF',
+          cursor:'pointer',fontSize:'13px',fontWeight:600,color:'#4A5568',transition:'all .15s',
+          display:'flex',alignItems:'center',gap:'6px',
+        }}
+        onMouseEnter={e=>{e.currentTarget.style.background='#F7FAFC';e.currentTarget.style.borderColor='#CBD5E0'}}
+        onMouseLeave={e=>{e.currentTarget.style.background='#FFFFFF';e.currentTarget.style.borderColor='#E2E8F0'}}
+        >
+          <span style={{fontSize:'15px'}}>{lang==='ko'?'🇨🇳':'🇰🇷'}</span>
+          {lang==='ko'?'中文':'한국어'}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+/* --- Week Selector --- */
+function WeekSelector({week,setWeek,lang,completed}){
+  return (
+    <div className="week-bar" style={{
+      display:'flex',gap:'6px',padding:'14px 32px',overflowX:'auto',
+      background:'#FFFFFF',borderBottom:'1px solid #E8EDF2',
+    }}>
+      {[1,2,3,4,5,6,7,8].map(w=>{
+        const active = w===week;
+        const crit = w===3||w===7;
+        const p = calcProgress(completed,w);
+        return (
+          <button key={w} onClick={()=>setWeek(w)} style={{
+            position:'relative',padding:'7px 16px',borderRadius:'8px',
+            border:active?'1.5px solid #4A90D9':'1px solid #E8EDF2',
+            background:active?'#EBF4FF':'transparent',
+            color:active?'#2B6CB0':'#4A5568',
+            fontWeight:active?600:400,fontSize:'13px',cursor:'pointer',
+            transition:'all .15s',whiteSpace:'nowrap',
+            display:'flex',alignItems:'center',gap:'6px',
+          }}>
+            {lang==='ko'?`${w}주차`:`第${w}周`}
+            {/* progress dot */}
+            {p.total>0 && (
+              <span style={{
+                width:'7px',height:'7px',borderRadius:'50%',
+                background:p.pct===100?'#48BB78':p.pct>0?'#4A90D9':'#E2E8F0',
+                transition:'background .3s',
+              }}/>
+            )}
+            {crit && (
+              <span style={{
+                position:'absolute',top:'3px',right:'3px',
+                width:'7px',height:'7px',borderRadius:'50%',background:'#E53E3E',
+              }}/>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* --- Task Card --- */
+function TaskCard({member,task,lang,week,hovered,onHover,onLeave,completed,toggle}){
+  const days = DAY_LABELS[lang];
+  const gL = {ko:'주간 목표',zh:'周目标'};
+  const dL = {ko:'제출물',zh:'交付物'};
+
+  // per-card progress
+  let doneCount = 0;
+  task.deliverables.forEach((_,i)=>{ if(completed[`${week}-${member.id}-${i}`]) doneCount++; });
+  const allDone = doneCount === task.deliverables.length && task.deliverables.length > 0;
+
+  return (
+    <div
+      onMouseEnter={onHover} onMouseLeave={onLeave}
+      style={{
+        background:'#FFFFFF',borderRadius:'12px',
+        boxShadow:hovered?'0 4px 16px rgba(0,0,0,.07)':'0 1px 3px rgba(0,0,0,.04)',
+        borderLeft:`4px solid ${member.color}`,
+        padding:'20px',minWidth:'270px',flex:'1 1 270px',maxWidth:'380px',
+        transition:'box-shadow .2s, transform .2s',
+        transform:hovered?'translateY(-2px)':'none',
+      }}
+    >
+      {/* name + role + progress */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+          <span style={{
+            padding:'3px 10px',borderRadius:'6px',
+            background:member.color+'14',color:member.color,
+            fontWeight:600,fontSize:'13px',
+          }}>{member.name}</span>
+          <span style={{fontSize:'11.5px',color:'#718096'}}>{member.role[lang]}</span>
+        </div>
+        {allDone && <span style={{fontSize:'14px'}} className="check-pop" key={`done-${week}-${member.id}`}>✅</span>}
+      </div>
+
+      {/* goal */}
+      <div style={{
+        padding:'9px 12px',background:'#F7FAFC',borderRadius:'8px',marginBottom:'12px',
+        fontSize:'12.5px',fontWeight:600,color:'#2D3748',
+        borderLeft:`3px solid ${member.color}30`,
+      }}>
+        {gL[lang]}: {task.goal[lang]}
+      </div>
+
+      {/* daily */}
+      <div style={{marginBottom:'12px'}}>
+        {task.daily.map((d,i)=>(
+          <div key={i} style={{
+            display:'flex',gap:'8px',padding:'5px 0',
+            borderBottom:i<4?'1px solid #F4F5F7':'none',
+            fontSize:'12px',lineHeight:'1.55',
+          }}>
+            <span style={{fontWeight:600,color:member.color,minWidth:lang==='ko'?'16px':'30px',flexShrink:0}}>
+              {days[i]}
+            </span>
+            <span style={{color:'#4A5568'}}>{d[lang]}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* deliverables */}
+      <div style={{borderTop:'1px solid #EDF2F7',paddingTop:'10px'}}>
+        <div style={{fontSize:'11px',fontWeight:600,color:'#A0AEC0',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'.5px'}}>
+          {dL[lang]}
+        </div>
+        {task.deliverables.map((d,i)=>{
+          const k = `${week}-${member.id}-${i}`;
+          const done = !!completed[k];
+          return (
+            <div key={k} onClick={()=>toggle(k)} style={{
+              display:'flex',alignItems:'center',gap:'8px',
+              padding:'7px 10px',borderRadius:'6px',cursor:'pointer',
+              background:done?'#F0FFF4':'#FAFBFC',
+              border:done?'1px solid #C6F6D5':'1px solid transparent',
+              marginBottom:'4px',transition:'all .2s',fontSize:'12.5px',
+              userSelect:'none',
+            }}
+            onMouseEnter={e=>{if(!done)e.currentTarget.style.background='#F0F4F8'}}
+            onMouseLeave={e=>{if(!done)e.currentTarget.style.background='#FAFBFC'}}
+            >
+              <span className={done?'check-pop':''} key={`ck-${k}-${done}`} style={{
+                width:'20px',height:'20px',borderRadius:'5px',
+                border:done?'none':'1.5px solid #CBD5E0',
+                background:done?'#48BB78':'transparent',
+                display:'flex',alignItems:'center',justifyContent:'center',
+                color:'#fff',fontSize:'13px',fontWeight:700,flexShrink:0,
+                transition:'background .15s, border .15s',
+              }}>
+                {done&&'✓'}
+              </span>
+              <span style={{
+                color:done?'#276749':'#4A5568',
+                transition:'color .15s',
+              }}>
+                {d[lang]}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* --- Handoff Flow --- */
+function HandoffFlow({handoffs,hoveredMember,lang}){
+  const title = {ko:'인수인계 흐름',zh:'对接流程'};
+  return (
+    <div style={{
+      background:'#FFFFFF',borderRadius:'12px',boxShadow:'0 1px 3px rgba(0,0,0,.04)',
+      padding:'18px 20px',marginTop:'20px',
+    }}>
+      <h3 style={{fontSize:'13px',fontWeight:600,color:'#2D3748',marginBottom:'12px'}}>{title[lang]}</h3>
+      <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+        {handoffs.map((h,i)=>{
+          const fm = memberMap[h.from], tm = memberMap[h.to];
+          const hl = hoveredMember&&(h.from===hoveredMember||h.to===hoveredMember);
+          return (
+            <div key={i} style={{
+              display:'flex',alignItems:'center',gap:'10px',
+              padding:'9px 14px',borderRadius:'8px',
+              background:hl?(fm.color+'0C'):'#FAFBFC',
+              border:hl?`1px solid ${fm.color}25`:'1px solid transparent',
+              transition:'all .25s',fontSize:'12.5px',
+            }}>
+              {/* colored dots + arrow */}
+              <div style={{display:'flex',alignItems:'center',gap:'3px',flexShrink:0}}>
+                <span style={{width:'8px',height:'8px',borderRadius:'50%',background:fm.color}} />
+                <svg width="18" height="8" viewBox="0 0 18 8">
+                  <line x1="0" y1="4" x2="12" y2="4" stroke={fm.color} strokeWidth="1.5"/>
+                  <polygon points="12,1 18,4 12,7" fill={fm.color}/>
+                </svg>
+                <span style={{width:'8px',height:'8px',borderRadius:'50%',background:tm.color}} />
+              </div>
+              <span style={{color:'#4A5568'}}>{h.desc[lang]}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* --- Milestone Timeline --- */
+function MilestoneTimeline({week,setWeek,lang}){
+  const title = {ko:'마일스톤',zh:'里程碑'};
+  return (
+    <div className="milestone-sidebar" style={{
+      background:'#FFFFFF',borderRadius:'12px',boxShadow:'0 1px 3px rgba(0,0,0,.04)',
+      padding:'20px',width:'250px',flexShrink:0,alignSelf:'flex-start',
+      position:'sticky',top:'16px',
+    }}>
+      <h3 style={{fontSize:'13px',fontWeight:600,color:'#2D3748',marginBottom:'18px'}}>{title[lang]}</h3>
+      <div className="milestone-list" style={{position:'relative',display:'flex',flexDirection:'column'}}>
+        {/* line */}
+        <div className="milestone-line" style={{position:'absolute',left:'11px',top:'12px',bottom:'12px',width:'2px',background:'#EDF2F7'}} />
+        {MILESTONES.map((m,i)=>{
+          const past=m.week<week, cur=m.week===week, fut=m.week>week;
+          let bg='#CBD5E0';
+          const extra={};
+          if(past) bg='#48BB78';
+          else if(cur){ bg='#4299E1'; extra.animation='pulse 2s infinite'; }
+          return (
+            <div key={m.week} onClick={()=>setWeek(m.week)} style={{
+              display:'flex',alignItems:'flex-start',gap:'12px',
+              marginBottom:i<7?'18px':0,cursor:'pointer',padding:'2px 0',
+            }}>
+              <div style={{
+                width:'22px',height:'22px',borderRadius:'50%',background:bg,flexShrink:0,
+                display:'flex',alignItems:'center',justifyContent:'center',
+                position:'relative',zIndex:1,...extra,
+              }}>
+                {past&&<span style={{color:'#fff',fontSize:'11px',fontWeight:700}}>✓</span>}
+                {(cur||fut)&&<span style={{color:'#fff',fontSize:'10px',fontWeight:600}}>{m.week}</span>}
+              </div>
+              <div style={{paddingTop:'1px',minWidth:0}}>
+                <div style={{
+                  fontSize:'11.5px',fontWeight:600,
+                  color:cur?'#2B6CB0':past?'#276749':'#A0AEC0',
+                  marginBottom:'1px',display:'flex',alignItems:'center',gap:'4px',
+                }}>
+                  {lang==='ko'?`${m.week}주차`:`第${m.week}周`}
+                  {m.critical&&<span style={{fontSize:'13px'}}>⚠️</span>}
+                </div>
+                <div style={{fontSize:'11px',color:cur?'#4A5568':past?'#718096':'#A0AEC0',lineHeight:'1.45'}}>
+                  {m.text[lang]}
+                </div>
+                {m.critical&&(
+                  <div style={{
+                    marginTop:'3px',padding:'2px 7px',borderRadius:'4px',
+                    background:'#FFF3E0',color:'#E65100',fontSize:'10px',fontWeight:600,display:'inline-block',
+                  }}>
+                    {lang==='ko'?'연기불가':'不可延期'}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* --- Week Progress Bar --- */
+function WeekProgress({progress,lang}){
+  const label = {ko:'이번 주 진행률',zh:'本周进度'};
+  const compL = {ko:'완료',zh:'已完成'};
+  return (
+    <div style={{
+      display:'flex',alignItems:'center',gap:'16px',marginBottom:'18px',
+      padding:'12px 16px',background:'#FFFFFF',borderRadius:'10px',
+      boxShadow:'0 1px 3px rgba(0,0,0,.04)',flexWrap:'wrap',
+    }}>
+      <span style={{fontSize:'12.5px',fontWeight:600,color:'#4A5568'}}>{label[lang]}</span>
+      <div style={{flex:1,minWidth:'120px',height:'8px',borderRadius:'4px',background:'#EDF2F7',overflow:'hidden'}}>
+        <div style={{
+          width:`${progress.pct}%`,height:'100%',borderRadius:'4px',
+          background:progress.pct===100?'#48BB78':'linear-gradient(90deg,#4A90D9,#63B3ED)',
+          transition:'width .4s cubic-bezier(.22,1,.36,1)',
+        }} />
+      </div>
+      <span style={{fontSize:'12px',color:'#718096',whiteSpace:'nowrap'}}>
+        {progress.done}/{progress.total} {compL[lang]} ({progress.pct}%)
+      </span>
+      {/* per-member dots */}
+      <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
+        {MEMBERS.map(m=>{
+          const pm = progress.byMember[m.id];
+          if(!pm) return null;
+          const allDone = pm.done===pm.total&&pm.total>0;
+          return (
+            <span key={m.id} title={m.name} style={{
+              width:'18px',height:'18px',borderRadius:'50%',
+              background:allDone?m.color:m.color+'30',
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:'9px',color:allDone?'#fff':m.color,fontWeight:700,
+              transition:'all .3s',
+            }}>
+              {allDone?'✓':pm.done}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ============================
+   APP
+   ============================ */
+function App(){
+  const [lang,setLang] = useState(()=>{
+    try{ return localStorage.getItem('capstone-lang')||'ko'; }catch{ return 'ko'; }
+  });
+  const [week,setWeek] = useState(1);
+  const [hovered,setHovered] = useState(null);
+  const [completed,setCompleted] = useState(loadState);
+
+  // persist lang
+  useEffect(()=>{
+    try{ localStorage.setItem('capstone-lang',lang); }catch{}
+  },[lang]);
+
+  // persist completed — debounced
+  const saveTimer = useRef(null);
+  useEffect(()=>{
+    if(saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(()=>saveState(completed),200);
+    return ()=>{ if(saveTimer.current) clearTimeout(saveTimer.current); };
+  },[completed]);
+
+  const toggle = useCallback((key)=>{
+    setCompleted(prev=>{
+      const next = {...prev};
+      if(next[key]) delete next[key]; else next[key] = true;
+      return next;
+    });
+  },[]);
+
+  const wd = W[week];
+  const progress = useMemo(()=>calcProgress(completed,week),[completed,week]);
+  const totalProgress = useMemo(()=>{
+    let d=0,t=0;
+    for(let w=1;w<=8;w++){
+      const p=calcProgress(completed,w);
+      d+=p.done; t+=p.total;
+    }
+    return {done:d,total:t,pct:t?Math.round(d/t*100):0};
+  },[completed]);
+
+  return (
+    <div style={{minHeight:'100vh',background:'#F8F9FB'}}>
+      <Header lang={lang} setLang={setLang} progress={totalProgress} />
+      <WeekSelector week={week} setWeek={setWeek} lang={lang} completed={completed} />
+
+      <div className="main-layout content-area" style={{padding:'24px 32px',display:'flex',gap:'24px',alignItems:'flex-start'}}>
+        {/* main */}
+        <div style={{flex:1,minWidth:0}}>
+          {/* week title */}
+          <div className="slide-up" key={`h-${week}`} style={{marginBottom:'16px'}}>
+            <h2 style={{fontSize:'17px',fontWeight:700,color:'#1A202C',marginBottom:'4px'}}>
+              {wd.title[lang]}
+            </h2>
+            <p style={{fontSize:'12.5px',color:'#718096'}}>{wd.desc[lang]}</p>
+            {(week===3||week===7)&&(
+              <div style={{
+                marginTop:'8px',padding:'8px 14px',borderRadius:'8px',
+                background:'#FFF3E0',color:'#E65100',fontSize:'12.5px',fontWeight:500,
+              }}>
+                ⚠️ {lang==='ko'?'핵심 마일스톤 — 연기 불가':'关键里程碑 — 不可延期'}
+              </div>
+            )}
+          </div>
+
+          {/* progress bar */}
+          <WeekProgress progress={progress} lang={lang} />
+
+          {/* cards */}
+          <div className="card-grid slide-up" key={`c-${week}`} style={{display:'flex',gap:'14px',flexWrap:'wrap'}}>
+            {MEMBERS.map(m=>{
+              const t = wd.tasks[m.id];
+              if(!t) return null;
+              return (
+                <TaskCard key={m.id} member={m} task={t} lang={lang} week={week}
+                  hovered={hovered===m.id}
+                  onHover={()=>setHovered(m.id)}
+                  onLeave={()=>setHovered(null)}
+                  completed={completed}
+                  toggle={toggle}
+                />
+              );
+            })}
+          </div>
+
+          {/* handoffs */}
+          {wd.handoffs?.length>0&&(
+            <HandoffFlow handoffs={wd.handoffs} hoveredMember={hovered} lang={lang} />
+          )}
+        </div>
+
+        {/* sidebar */}
+        <MilestoneTimeline week={week} setWeek={setWeek} lang={lang} />
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

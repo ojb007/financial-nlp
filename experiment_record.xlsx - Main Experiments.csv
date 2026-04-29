@@ -1,0 +1,3 @@
+Date,Experiment Group (A-F),Dataset,Model,Prompt Strategy,RAG,Accuracy,F1_macro,F1_micro,F1_weighted,Avg Latency (ms),Total Cost ($),Cost per Sample ($),cost_per_item ,LLM Judge,latency_ms,Notes
+2026-03-30,A,"FPB (full, n=4846)",GPT-5.4,zero_shot,X,0.806,0.817,0.806,0.796,486.0,$2.0800,$0.0004,,,,Main error pattern: neutral→positive (559 cases)
+2026-03-30,B,"FPB (full, n=4846)",GPT-5.4,optimized_prompt,X,0.840,0.838,0.840,0.842,837.0,$6.7600,$0.0014,,,,Negative recall: 94.4%; neutral → positive errors: 407 cases
